@@ -20,8 +20,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,6 +50,8 @@ import java.io.File
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class TLEEntry (
     val name: String,
@@ -94,10 +98,7 @@ fun ContentView(modifier: Modifier = Modifier) {
             name = itemList[selectedIndex],
             tleList = tleList
         )?.let {
-            getCoordinates(
-                tleData = it,
-                modifier = Modifier
-            )
+            getCoordinates(tleData = it, modifier = Modifier)
         }
     }
 }
@@ -116,49 +117,52 @@ fun getTLEByName(name: String, tleList: List<TLEEntry>): TLEEntry? {
 }
 
 @Composable
-fun getCoordinates(tleData: TLEEntry, modifier: Modifier = Modifier){
+fun getCoordinates(tleData: TLEEntry, modifier: Modifier = Modifier) {
+    var coordinates by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
-    val zipFile = File(context.filesDir, "orekit-data-main.zip")
-    if (!zipFile.exists()) {
-        context.assets.open("orekit-data-main.zip").use { input ->
-            zipFile.outputStream().use { output ->
-                input.copyTo(output)
+
+    LaunchedEffect(tleData) {
+        withContext(Dispatchers.IO) {
+            try {
+                val zipFile = File(context.filesDir, "orekit-data-main.zip")
+                if (!zipFile.exists()) {
+                    context.assets.open("orekit-data-main.zip").use { input ->
+                        zipFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
+
+                val manager = ZipJarCrawler(zipFile)
+                DataContext.getDefault().dataProvidersManager.clearProviders()
+                DataContext.getDefault().dataProvidersManager.addProvider(manager)
+
+                val tle = TLE(tleData.line1, tleData.line2)
+                val propagator = TLEPropagator.selectExtrapolator(tle)
+                val date = AbsoluteDate(2024, 4, 9, 12, 0, 0.0, TimeScalesFactory.getUTC())
+
+                val itrf: Frame = FramesFactory.getITRF(IERSConventions.IERS_2010, true)
+                val pvInItrf = propagator.getPVCoordinates(date, itrf)
+                val earth = ReferenceEllipsoid.getWgs84(itrf)
+                val point: GeodeticPoint = earth.transform(pvInItrf.position, itrf, date)
+
+                val latDeg = Math.toDegrees(point.latitude)
+                val lonDeg = Math.toDegrees(point.longitude)
+                val altMeters = point.altitude
+
+                coordinates = "Name: ${tleData.name}\nLatitude: $latDeg\nLongitude: $lonDeg\nAltitude: $altMeters"
+            } catch (e: Exception) {
+                coordinates = "Error loading data: ${e.message}"
             }
         }
     }
 
-    val manager = ZipJarCrawler(zipFile)
-    DataContext.getDefault().dataProvidersManager.addProvider(manager)
-    val name = tleData.name
-    val line1 = tleData.line1
-    val line2 = tleData.line2
-    val tle = TLE(
-        line1, line2
-    )
-
-    val propagator = TLEPropagator.selectExtrapolator(tle)
-    val date = AbsoluteDate(2024, 4, 9, 12, 0, 0.0, TimeScalesFactory.getUTC())
-
-    val itrf: Frame = FramesFactory.getITRF(IERSConventions.IERS_2010, true)
-    val pvInItrf = propagator.getPVCoordinates(date, itrf)
-
-    val earth = ReferenceEllipsoid.getWgs84(itrf)
-
-    val point: GeodeticPoint = earth.transform(pvInItrf.position, itrf, date)
-
-    val latDeg = Math.toDegrees(point.latitude)
-    val lonDeg = Math.toDegrees(point.longitude)
-    val altMeters = point.altitude
-
     Text(
-        text = "Name:      $name\nLatitude:  $latDeg\nLongitude: $lonDeg\nAltitude:  $altMeters",
-        modifier = modifier
+        text = coordinates ?: "Loading TLE data...",
+        modifier = modifier.padding(top = 8.dp)
     )
-    println("Name:      $name")
-    println("Latitude:  $latDeg")
-    println("Longitude: $lonDeg")
-    println("Altitude:  $altMeters")
 }
+
 
 @Composable
 fun DropdownList(itemList: List<String>, selectedIndex: Int, modifier: Modifier, onItemClick: (Int) -> Unit) {
@@ -180,7 +184,7 @@ fun DropdownList(itemList: List<String>, selectedIndex: Int, modifier: Modifier,
             Text(text = itemList[selectedIndex], modifier = Modifier.padding(3.dp))
         }
 
-        Box() {
+        Box {
             if (showDropdown) {
                 Popup(
                     alignment = Alignment.Center,
@@ -192,7 +196,7 @@ fun DropdownList(itemList: List<String>, selectedIndex: Int, modifier: Modifier,
 
                     Column(
                         modifier = modifier
-                            .heightIn(max = 90.dp)
+                            .heightIn(max = 300.dp)
                             .verticalScroll(state = scrollState)
                             .border(width = 1.dp, color = Color.Gray),
                         horizontalAlignment = Alignment.CenterHorizontally,
