@@ -10,6 +10,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -34,6 +36,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.example.tle.ui.theme.TLETheme
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.text.style.TextAlign
 
 import org.orekit.bodies.GeodeticPoint
 import org.orekit.data.DataContext
@@ -88,7 +94,41 @@ fun ContentView(modifier: Modifier = Modifier) {
         modifier = Modifier,
         verticalArrangement = Arrangement.Center
     ) {
-        DropdownList(itemList = itemList, selectedIndex = selectedIndex, modifier = buttonModifier, onItemClick = {selectedIndex = it})
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
+                .padding(top = 75.dp, /*start = 8.dp, end = 8.dp,*/ bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            DropdownList(
+                itemList = itemList,
+                selectedIndex = selectedIndex,
+                modifier = Modifier.weight(1f),
+                onItemClick = { selectedIndex = it }
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = "Choose year",
+                modifier = Modifier
+                    .align(Alignment.CenterVertically),
+                textAlign = TextAlign.End
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = "Choose day",
+                modifier = Modifier
+                    .align(Alignment.CenterVertically),
+                textAlign = TextAlign.End
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = "Choose time",
+                modifier = Modifier
+                    .align(Alignment.CenterVertically),
+                textAlign = TextAlign.End
+            )
+        }
 
         Text(
             text = "You have chosen ${itemList[selectedIndex]}",
